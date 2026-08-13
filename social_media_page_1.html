@@ -351,17 +351,16 @@ function pickCondition(paramName, options) {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-const descCondition = pickCondition("desc", ["antihate", "prohate"]); // descriptive norm
-// Victim similarity (Muslim / non-Muslim) is manipulated AND recorded
-// upstream in QuestionPro's intro text screen — no need to track it
-// here too. Merge by participant_id at analysis time.
+const victimCondition = pickCondition("victim", ["muslim", "nonmuslim"]);
+  
+const descCondition = pickCondition("desc", ["antihate", "prohate"]); 
 
 const COMMENTS_BY_DESC = {
   antihate: [
     { id: "c1", name: "A. M.", text: "ein schlechtes Spiel löscht nicht eine ganze Saison. wir werden es nächstes Mal besser machen" },
     { id: "c2", name: "J. R.", text: "kein Wunder, dass er versagt hat, diesen muslimischen Spielern ist es immer wichtiger, fünfmal am Tag zu beten als tatsächlich zu trainieren. schickt ihn zurück in das Land, aus dem er gekommen ist" },
     { id: "c3", name: "T. B.", text: "diese muslimischen Spieler sind nutzlos. wir brauchen sie hier nicht" },
-    { id: "c4", name: "S. K.", text: "das passiert jedem, Kopf hoch Yusuf, wir stehen zu 100% hinter dir" },
+    { id: "c4", name: "S. K.", text: "das passiert jedem, Kopf hoch {{FIRST_NAME}}, wir stehen zu 100% hinter dir" },
     { id: "c5", name: "M. P.", text: "dieser Kommentarbereich ist ermüdend, lasst dem Typen seinen schlechten Abend" },
     { id: "c6", name: "R. D.", text: "er hat uns das ganze Jahr über alles gegeben, manche Fans sollten sich beruhigen" }
   ],
@@ -375,16 +374,10 @@ const COMMENTS_BY_DESC = {
   ]
 };
 
-const VICTIM_FIXED = {
-  name: "Yusuf K.",
-  initials: "YK",
-  postText: "Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. \uD83D\uDE4F"
-};
-
 /* ---------- Assemble this participant's actual stimulus ---------- */
-const CONDITION = {
-  comments: COMMENTS_BY_DESC[descCondition],
-  victim: VICTIM_FIXED
+const VICTIM_BY_CONDITION = {
+  muslim:    { name: "Yusuf K.",  initials: "YK" },
+  nonmuslim: { name: "Marcus K.", initials: "MK" }
 };
 
 /* ---------- Render victim-dependent post header/body ---------- */
