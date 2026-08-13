@@ -78,10 +78,6 @@
     padding: 8px 14px; font-size: 12px; color: var(--muted);
     border-top: 1px solid var(--border);
   }
-  .post-stats {
-    padding: 8px 14px; font-size: 12px; color: var(--muted);
-    border-top: 1px solid var(--border);
-  }
 
   /* ---------- Top-level comment bar (direct reply to the post) ---------- */
   .top-comment-bar {
@@ -291,7 +287,6 @@
       </div>
     </div>
     <div class="post-body">
-      <!-- POST_TEXT: swap per condition (Muslim / non-Muslim comparison name+cue) -->
       Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. 🙏
     </div>
     <img class="post-image" src="post_photo.jpg" alt="Post image">
@@ -335,7 +330,7 @@
 <script>
 /* =========================================================
    PARTICIPANT ID
-   Passed in via URL param from Qualtrics, e.g.:
+   Passed in via URL param from QuestionPro, e.g.:
    interactive_vignette_prototype.html?pid=P014
    Falls back to a timestamp-based ID for standalone testing.
    ========================================================= */
@@ -351,9 +346,8 @@ function pickCondition(paramName, options) {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-const victimCondition = pickCondition("victim", ["muslim", "nonmuslim"]);
-  
-const descCondition = pickCondition("desc", ["antihate", "prohate"]); 
+const victimCondition = pickCondition("victim", ["muslim", "nonmuslim"]); // victim similarity
+const descCondition = pickCondition("desc", ["antihate", "prohate"]);     // descriptive norm
 
 const COMMENTS_BY_DESC = {
   antihate: [
@@ -374,11 +368,24 @@ const COMMENTS_BY_DESC = {
   ]
 };
 
-/* ---------- Assemble this participant's actual stimulus ---------- */
+/* Victim identity: name/initials vary by condition, postText stays
+   identical across both so only the identity cue itself changes. */
+const SHARED_POST_TEXT = "Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. \uD83D\uDE4F";
+
 const VICTIM_BY_CONDITION = {
-  muslim:    { name: "Yusuf K.",  initials: "YK" },
-  nonmuslim: { name: "Marcus K.", initials: "MK" }
+  muslim:    { name: "Yusuf K.",  initials: "YK", postText: SHARED_POST_TEXT },
+  nonmuslim: { name: "Marcus K.", initials: "MK", postText: SHARED_POST_TEXT }
 };
+
+/* ---------- Assemble this participant's actual stimulus ---------- */
+const CONDITION = {
+  comments: COMMENTS_BY_DESC[descCondition],
+  victim: VICTIM_BY_CONDITION[victimCondition]
+};
+
+// First name only, used to fill {{FIRST_NAME}} in comment text below —
+// e.g. "Yusuf K." -> "Yusuf", "Marcus K." -> "Marcus".
+const victimFirstName = CONDITION.victim.name.split(" ")[0];
 
 /* ---------- Render victim-dependent post header/body ---------- */
 document.addEventListener("DOMContentLoaded", () => {
@@ -399,6 +406,7 @@ document.addEventListener("DOMContentLoaded", () => {
 const log = {
   participant_id: participantId,
   desc_condition: descCondition,
+  victim_condition: victimCondition,
   page_load_ts: Date.now(),
   time_to_first_action_ms: null,
   comments: {},
@@ -441,10 +449,15 @@ CONDITION.comments.forEach(c => {
   row.className = "comment";
   row.dataset.commentId = c.id;
 
+  // Fill in the victim's first name wherever {{FIRST_NAME}} appears
+  // in this comment's text (only c4 uses it right now, but this
+  // works for any comment that includes the placeholder).
+  const renderedText = c.text.replace(/{{FIRST_NAME}}/g, victimFirstName);
+
   row.innerHTML = `
     <div class="avatar">${c.name.split(" ").map(p => p[0]).join("")}</div>
     <div class="comment-body">
-      <span class="comment-name">${c.name}</span><span class="comment-text">${c.text}</span>
+      <span class="comment-name">${c.name}</span><span class="comment-text">${renderedText}</span>
       <div class="comment-meta-row">
         <span class="comment-time">${Math.floor(Math.random() * 50) + 5}m</span>
         <button type="button" class="reply-toggle">Reply</button>
@@ -515,9 +528,6 @@ CONDITION.comments.forEach(c => {
     log.comments[c.id].reply_text = text;
     log.comments[c.id].reply_submit_ts = Date.now();
 
-    // Render the reply as its own comment, nested under the one it's
-    // replying to — same visual pattern as a real platform's threads,
-    // rather than leaving it sitting in a frozen textarea.
     const replyRow = document.createElement("div");
     replyRow.className = "comment comment-reply";
     replyRow.innerHTML = `
@@ -532,9 +542,6 @@ CONDITION.comments.forEach(c => {
     `;
     row.insertAdjacentElement("afterend", replyRow);
 
-    // Reset the reply box, then remove the ability to reply again to
-    // this comment — keeps the log's one-reply-per-comment data clean
-    // (a second reply would otherwise silently overwrite reply_text).
     replyBox.remove();
     replyToggle.remove();
 
@@ -567,7 +574,6 @@ topPostBtn.addEventListener("click", () => {
   topPostBtn.textContent = "Posted";
   topTextarea.disabled = true;
 
-  // Reflect the new comment in the visible feed, like a real platform would.
   const newRow = document.createElement("div");
   newRow.className = "comment";
   newRow.innerHTML = `
@@ -615,6 +621,7 @@ function buildParticipantRow() {
   const row = {
     participant_id: log.participant_id,
     desc_condition: log.desc_condition,
+    victim_condition: log.victim_condition,
     page_load_ts: log.page_load_ts,
     time_to_first_action_ms: log.time_to_first_action_ms,
     next_clicked_ts: log.next_clicked_ts,
@@ -659,20 +666,13 @@ document.getElementById("next-btn").addEventListener("click", () => {
   log.next_clicked_ts = Date.now();
   renderDebug();
 
-  // Send to your Google Sheet — the only data destination. Nothing
-  // downloads to the participant's own device; the debug panel (only
-  // visible to you, gated behind ?debug=1) has a raw JSON export for
-  // your own spot-checking instead.
   sendToGoogleSheet();
 
-  // Swap the vignette out for a clean thank-you message.
   document.querySelector(".instructions").style.display = "none";
   document.querySelector(".card").style.display = "none";
   document.querySelector(".continue-row").style.display = "none";
   document.getElementById("thankyou-screen").style.display = "block";
 
-  // Redirect to QuestionPro after a short delay, so the browser
-  // has time to send the sheet submission before navigating away.
   setTimeout(() => {
     window.location.href = QUESTIONPRO_REDIRECT_URL;
   }, REDIRECT_DELAY_MS);
