@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Vignette Prototype — Study 3</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --border: #dcdfe3;
+    --text: #1c1e21;
+    --muted: #65676b;
+    --accent: #4a5568;
+    --danger: #c0392b;
+    --instr-bg: #eef3f8;
+    --instr-border: #b9cde0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 24px 12px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .instructions {
+    width: 100%;
+    max-width: 560px;
+    background: var(--instr-bg);
+    border: 1px solid var(--instr-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+  .instructions strong { display: block; margin-bottom: 4px; }
+  .instructions ul { margin: 6px 0 0 0; padding-left: 20px; }
+  .instructions li { margin-bottom: 3px; }
+
+  .card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .post-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: #c7cdd6;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; color: #fff; font-size: 15px;
+    flex-shrink: 0;
+  }
+  .post-header .name { font-weight: 600; font-size: 14px; }
+  .post-header .meta { font-size: 12px; color: var(--muted); }
+  .post-body { padding: 0 14px 12px; font-size: 14px; line-height: 1.45; }
+  .post-image {
+    display: block;
+    width: 100%;
+    height: 420px;
+    object-fit: cover;
+    object-position: center;
+    background: repeating-linear-gradient(45deg,#e3e6ea,#e3e6ea 10px,#dadde1 10px,#dadde1 20px);
+  }
+  .post-stats {
+    padding: 8px 14px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  .post-stats {
+    padding: 8px 14px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---------- Top-level comment bar (direct reply to the post) ---------- */
+  .top-comment-bar {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+  }
+  .top-comment-bar textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 40px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .top-comment-actions { margin-top: 6px; display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ---------- Comments ---------- */
+  .comments { padding: 6px 0; }
+  .comment {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #eef0f2;
+  }
+  .comment:last-child { border-bottom: none; }
+  .comment.comment-reply {
+    margin-left: 42px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    background: #fafbfc;
+  }
+  .comment .avatar { width: 32px; height: 32px; font-size: 12px; }
+  .comment-body { flex: 1; min-width: 0; }
+  .comment-name { font-weight: 600; font-size: 13px; margin-right: 6px; }
+  .comment-text { font-size: 13.5px; line-height: 1.4; display: inline; }
+  .comment-meta-row { margin-top: 3px; display: flex; align-items: center; gap: 10px; }
+  .comment-time { font-size: 11px; color: var(--muted); }
+  .reply-toggle {
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 600;
+  }
+  .reply-toggle:hover { text-decoration: underline; }
+
+  /* Flag icon: hidden until hover, per instruction */
+  .flag-btn {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    opacity: 0;
+    pointer-events: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--danger);
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .comment:hover .flag-btn,
+  .flag-btn:focus {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .flag-btn:hover { background: #fbeceb; }
+  .flag-btn.flagged { opacity: 1; pointer-events: auto; color: #8e2f24; }
+
+  /* Inline reply box (per comment) */
+  .reply-box {
+    margin-top: 8px;
+    display: none;
+  }
+  .reply-box.open { display: block; }
+  .reply-box textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 46px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .reply-actions { margin-top: 6px; display: flex; gap: 8px; }
+  .reply-actions button {
+    font-size: 12.5px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+  }
+  .reply-actions .post-btn,
+  .top-comment-actions .post-btn {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .reply-actions .post-btn:disabled,
+  .top-comment-actions .post-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .status-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #fdecea;
+    color: var(--danger);
+  }
+
+  .new-comment-tag {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #e8f0fe;
+    color: #3b5bdb;
+  }
+
+  /* ---------- Next / continue ---------- */
+  .continue-row {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+  .next-btn {
+    font-size: 14px;
+    padding: 9px 22px;
+    border-radius: 7px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  .next-btn:hover { opacity: 0.92; }
+
+  /* ---------- Thank-you screen ---------- */
+  .thankyou-screen {
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 18px;
+  }
+  .thankyou-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* ---------- Debug panel (testing only, hidden from participants) ---------- */
+  .debug {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 26px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .debug summary { cursor: pointer; margin-bottom: 6px; }
+  .debug pre {
+    background: #1c1e21;
+    color: #d4d8dd;
+    padding: 10px;
+    border-radius: 8px;
+    overflow-x: auto;
+    max-height: 220px;
+  }
+  .debug button {
+    font-size: 12px;
+    margin-top: 6px;
+    margin-right: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+</style>
+</head>
+<body>
+
+  <div class="instructions">
+    <strong>Before you continue:</strong>
+    <ul>
+      <li>If you would like to <b>flag</b> a comment, hover over it and click the flag icon that appears.</li>
+      <li>If you would like to <b>reply</b> to a specific comment, click "Reply" below it.</li>
+      <li>If you would like to <b>leave your own comment</b> on the post, use the comment box below the post.</li>
+      <li>If you do not prefer to act, click <b>Next</b> to continue.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="post-header">
+      <div class="avatar">YK</div>
+      <div>
+        <div class="name">yusuf K.</div>
+        <div class="meta">4 hours ago · Forward, [CLUB NAME]</div>
+      </div>
+    </div>
+    <div class="post-body">
+      <!-- POST_TEXT: swap per condition (Muslim / non-Muslim comparison name+cue) -->
+      Tough one today. We didn't get the result we wanted, but we'll go back to work and come back stronger. Thank you to everyone who's still with us. 🙏
+    </div>
+    <img class="post-image" src="post_photo.jpg" alt="Post image">
+    <div class="post-stats">👍 1.2K &nbsp;·&nbsp; 💬 <span id="comment-count">345</span> comments</div>
+
+    <!-- Top-level comment bar: replying to the POST directly,
+         separate from replying to any specific comment. -->
+    <div class="top-comment-bar">
+      <textarea id="top-comment-textarea" placeholder="Write a comment..."></textarea>
+      <div class="top-comment-actions">
+        <button type="button" id="top-comment-post" class="post-btn" disabled>Post</button>
+      </div>
+    </div>
+
+    <div class="comments" id="comment-list">
+      <!-- Rendered by JS from CONDITION below -->
+    </div>
+  </div>
+
+  <div class="continue-row">
+    <button class="next-btn" id="next-btn">Next</button>
+  </div>
+
+  <!-- Shown only after clicking Next; hides the vignette and gives the
+       participant a clear endpoint while the file downloads and the
+       redirect to QuestionPro happens. -->
+  <div class="thankyou-screen" id="thankyou-screen" style="display:none;">
+    <p>Thank you for participating.</p>
+    <p class="thankyou-sub">You will be redirected shortly...</p>
+  </div>
+
+  <!-- Debug panel: hidden from participants by default. Only visible to
+       you during testing by opening the file with ?debug=1 in the URL,
+       e.g. interactive_vignette_prototype.html?debug=1 -->
+  <details class="debug" id="debug-panel" style="display:none;">
+    <summary>Debug: logged interaction data (testing only — participants never see this)</summary>
+    <pre id="debug-output">{}</pre>
+    <button id="download-xlsx-btn">Download Excel (.xlsx)</button>
+    <button id="download-json-btn">Download raw JSON</button>
+  </details>
+
+<script>
+/* =========================================================
+   PARTICIPANT ID
+   Passed in via URL param from Qualtrics, e.g.:
+   interactive_vignette_prototype.html?pid=P014
+   Falls back to a timestamp-based ID for standalone testing.
+   ========================================================= */
+const urlParams = new URLSearchParams(window.location.search);
+const participantId = urlParams.get("pid") || ("TEST_" + Date.now());
+
+/* =========================================================
+   CONDITION ASSIGNMENT (2 x 2 x 2)
+   Each factor is read from its own URL param. If Qualtrics's
+   randomizer assigned condition upstream, pass it through the
+   handoff URL, e.g.:
+     ...html?pid=P014&desc=antihate&victim=muslim
+   Any parameter that's missing gets randomly assigned here
+   instead (useful for standalone testing/piloting), and the
+   assignment is recorded in the export so it's never lost.
+   Injunctive norms are now MEASURED (via QuestionPro items)
+   rather than manipulated, so there's no injunctive condition
+   or platform-stat content here anymore.
+   ========================================================= */
+function pickCondition(paramName, options) {
+  const fromUrl = urlParams.get(paramName);
+  if (fromUrl && options.includes(fromUrl)) return fromUrl;
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+const descCondition = pickCondition("desc", ["antihate", "prohate"]); // descriptive norm
+// Victim similarity (Muslim / non-Muslim) is manipulated AND recorded
+// upstream in QuestionPro's intro text screen — no need to track it
+// here too. Merge by participant_id at analysis time.
+
+const COMMENTS_BY_DESC = {
+  antihate: [
+    { id: "c1", name: "A. M.", text: "one bad game doesn't erase a whole season. we will do better next time" },
+    { id: "c2", name: "J. R.", text: "not surprised he choked, these Muslim players always care more about praying five times a day than actually training. send him back to whatever country he came from now" },
+    { id: "c3", name: "T. B.", text: "these Muslim players are useless. we don't need them here" },
+    { id: "c4", name: "S. K.", text: "it happens to everyone, keep your head up Yusuf, we're still behind you 100%" },
+    { id: "c5", name: "M. P.", text: "this comment section is exhausting, let the guy have a rough night" },
+    { id: "c6", name: "R. D.", text: "he's given us everything all year, some fans need to relax" }
+  ],
+  prohate: [
+    { id: "c1", name: "A. M.", text: "this comment section is exhausting, let the guy have a rough night" },
+    { id: "c2", name: "J. R.", text: "crazy that we are spending money on such a horrible player. no more muslim footballer allowed here" },
+    { id: "c3", name: "T. B.", text: "not surprised he choked, these muslim players always care more about praying five times a day than actually training. send him back to whatever country he came from now" },
+    { id: "c4", name: "S. K.", text: "one bad game doesn't erase a whole season. we will do better next time" },
+    { id: "c5", name: "M. P.", text: "this is why we shouldn't let muslim taking over the game. take them out!" },
+    { id: "c6", name: "R. D.", text: "these muslim players are useless. we don't need them here" }
+  ]
+};
+
+const VICTIM_FIXED = {
+  name: "Yusuf K.",
+  initials: "YK",
+  club: "[CLUB NAME]",
+  postText: "Tough one today. We didn't get the result we wanted, but we'll go back to work and come back stronger. Thank you to everyone who's still with us. \uD83D\uDE4F"
+};
+// Note: victim identity (Muslim / non-Muslim) is manipulated AND recorded
+// upstream in QuestionPro's intro text screen ("Yusuf is a [Muslim]
+// forward..."), not here — merge with that variable by participant_id
+// at analysis time to derive match/mismatch against baseline religion.
+// The prototype's own content (name, avatar, post, club) stays IDENTICAL
+// across victim conditions on purpose, since this page never needs to
+// know which version the participant saw.
+
+/* ---------- Assemble this participant's actual stimulus ---------- */
+const CONDITION = {
+  comments: COMMENTS_BY_DESC[descCondition],
+  victim: VICTIM_FIXED
+};
+
+/* ---------- Render victim-dependent post header/body ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector(".post-header .avatar").textContent = CONDITION.victim.initials;
+  document.querySelector(".post-header .name").textContent = CONDITION.victim.name;
+  document.querySelector(".post-header .meta").textContent = `2 hours ago \u00B7 Forward, ${CONDITION.victim.club}`;
+  document.querySelector(".post-body").textContent = CONDITION.victim.postText;
+});
+
+/* =========================================================
+   DATA LOG
+   One object per participant. comments{} holds per-comment
+   flag/reply data keyed by comment id. This is what gets
+   flattened into a single Excel row at export time, and is
+   also what you'd hand to jsPsych's on_finish in the real
+   deployment.
+   ========================================================= */
+const log = {
+  participant_id: participantId,
+  desc_condition: descCondition,
+  page_load_ts: Date.now(),
+  time_to_first_action_ms: null,
+  comments: {},
+  top_level_comment: {
+    opened: false,
+    submitted: false,
+    text: null,
+    submit_ts: null
+  },
+  next_clicked_ts: null
+};
+
+CONDITION.comments.forEach(c => {
+  log.comments[c.id] = {
+    flagged: false,
+    flag_ts: null,
+    reply_opened: false,
+    reply_opened_ts: null,
+    reply_submitted: false,
+    reply_text: null,
+    reply_submit_ts: null
+  };
+});
+
+function markFirstAction() {
+  if (log.time_to_first_action_ms === null) {
+    log.time_to_first_action_ms = Date.now() - log.page_load_ts;
+  }
+}
+
+function renderDebug() {
+  document.getElementById("debug-output").textContent = JSON.stringify(log, null, 2);
+}
+
+/* ---------- Render comments ---------- */
+const list = document.getElementById("comment-list");
+
+CONDITION.comments.forEach(c => {
+  const row = document.createElement("div");
+  row.className = "comment";
+  row.dataset.commentId = c.id;
+
+  row.innerHTML = `
+    <div class="avatar">${c.name.split(" ").map(p => p[0]).join("")}</div>
+    <div class="comment-body">
+      <span class="comment-name">${c.name}</span><span class="comment-text">${c.text}</span>
+      <div class="comment-meta-row">
+        <span class="comment-time">${Math.floor(Math.random() * 50) + 5}m</span>
+        <button type="button" class="reply-toggle">Reply</button>
+        <span class="status-tag" style="display:none;">Flagged</span>
+      </div>
+      <div class="reply-box" id="reply-box-${c.id}">
+        <textarea id="reply-textarea-${c.id}" placeholder="Write a reply..."></textarea>
+        <div class="reply-actions">
+          <button type="button" class="cancel-reply">Cancel</button>
+          <button type="button" class="post-btn post-reply" disabled>Post</button>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="flag-btn" title="Flag this comment" aria-label="Flag this comment">⚑</button>
+  `;
+
+  list.appendChild(row);
+
+  // ---- Flag button (hover-revealed, per instruction) ----
+  const flagBtn = row.querySelector(".flag-btn");
+  flagBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    markFirstAction();
+    flagBtn.classList.add("flagged");
+    flagBtn.textContent = "⚑ Flagged";
+    row.querySelector(".status-tag").style.display = "inline-block";
+
+    if (!log.comments[c.id].flagged) {
+      log.comments[c.id].flagged = true;
+      log.comments[c.id].flag_ts = Date.now();
+    }
+    renderDebug();
+  });
+
+  // ---- Reply button (always visible, per comment) ----
+  const replyToggle = row.querySelector(".reply-toggle");
+  const replyBox = row.querySelector(`#reply-box-${c.id}`);
+  const replyTextarea = row.querySelector(`#reply-textarea-${c.id}`);
+  const postReplyBtn = row.querySelector(".post-reply");
+  const cancelReplyBtn = row.querySelector(".cancel-reply");
+
+  replyToggle.addEventListener("click", () => {
+    markFirstAction();
+    const opening = !replyBox.classList.contains("open");
+    replyBox.classList.toggle("open");
+    if (opening && !log.comments[c.id].reply_opened) {
+      log.comments[c.id].reply_opened = true;
+      log.comments[c.id].reply_opened_ts = Date.now();
+    }
+    if (opening) replyTextarea.focus();
+    renderDebug();
+  });
+
+  replyTextarea.addEventListener("input", () => {
+    postReplyBtn.disabled = replyTextarea.value.trim().length === 0;
+  });
+
+  cancelReplyBtn.addEventListener("click", () => {
+    replyTextarea.value = "";
+    postReplyBtn.disabled = true;
+    replyBox.classList.remove("open");
+  });
+
+  postReplyBtn.addEventListener("click", () => {
+    const text = replyTextarea.value.trim();
+    if (!text) return;
+    log.comments[c.id].reply_submitted = true;
+    log.comments[c.id].reply_text = text;
+    log.comments[c.id].reply_submit_ts = Date.now();
+
+    // Render the reply as its own comment, nested under the one it's
+    // replying to — same visual pattern as a real platform's threads,
+    // rather than leaving it sitting in a frozen textarea.
+    const replyRow = document.createElement("div");
+    replyRow.className = "comment comment-reply";
+    replyRow.innerHTML = `
+      <div class="avatar">YOU</div>
+      <div class="comment-body">
+        <span class="comment-name">You</span><span class="comment-text">${text}</span>
+        <div class="comment-meta-row">
+          <span class="comment-time">just now</span>
+          <span class="new-comment-tag">Your reply</span>
+        </div>
+      </div>
+    `;
+    row.insertAdjacentElement("afterend", replyRow);
+
+    // Reset the reply box, then remove the ability to reply again to
+    // this comment — keeps the log's one-reply-per-comment data clean
+    // (a second reply would otherwise silently overwrite reply_text).
+    replyBox.remove();
+    replyToggle.remove();
+
+    renderDebug();
+  });
+});
+
+/* ---------- Top-level comment bar (direct reply to the post) ---------- */
+const topTextarea = document.getElementById("top-comment-textarea");
+const topPostBtn = document.getElementById("top-comment-post");
+
+topTextarea.addEventListener("focus", () => {
+  markFirstAction();
+  if (!log.top_level_comment.opened) {
+    log.top_level_comment.opened = true;
+  }
+});
+
+topTextarea.addEventListener("input", () => {
+  topPostBtn.disabled = topTextarea.value.trim().length === 0;
+});
+
+topPostBtn.addEventListener("click", () => {
+  const text = topTextarea.value.trim();
+  if (!text) return;
+  log.top_level_comment.submitted = true;
+  log.top_level_comment.text = text;
+  log.top_level_comment.submit_ts = Date.now();
+  topPostBtn.disabled = true;
+  topPostBtn.textContent = "Posted";
+  topTextarea.disabled = true;
+
+  // Reflect the new comment in the visible feed, like a real platform would.
+  const newRow = document.createElement("div");
+  newRow.className = "comment";
+  newRow.innerHTML = `
+    <div class="avatar">YOU</div>
+    <div class="comment-body">
+      <span class="comment-name">You</span><span class="comment-text">${text}</span>
+      <div class="comment-meta-row">
+        <span class="comment-time">just now</span>
+        <span class="new-comment-tag">Your comment</span>
+      </div>
+    </div>
+  `;
+  list.insertBefore(newRow, list.firstChild);
+  document.getElementById("comment-count").textContent =
+    parseInt(document.getElementById("comment-count").textContent, 10) + 1;
+
+  renderDebug();
+});
+
+/* =========================================================
+   REDIRECT TARGET
+   Set this to your actual QuestionPro survey URL for the next
+   block. If you need to pass the participant ID back through
+   (recommended, so QuestionPro can match this session to the
+   right respondent), append it as a query param QuestionPro
+   expects — check your survey's URL-passing setup for the
+   exact parameter name it wants.
+   ========================================================= */
+const QUESTIONPRO_REDIRECT_URL = "https://YOUR-QUESTIONPRO-SURVEY-URL-HERE";
+const REDIRECT_DELAY_MS = 1800; // gives the sheet submission time to fire before navigating away
+
+/* =========================================================
+   DATA DESTINATION — Google Sheets via Apps Script
+   Every participant's data is sent here as their own row.
+   ========================================================= */
+const GOOGLE_SHEETS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx0lsv9Wggatj-KAgpDgXDpDFulEIiUBpYuF-EzGNHjjxYoxGYb5L6HJmccnlHlM-b1Hw/exec";
+
+/* ---------- Debug panel: only visible during testing ---------- */
+if (urlParams.get("debug") === "1") {
+  document.getElementById("debug-panel").style.display = "block";
+}
+
+/* ---------- Export: flatten log into one spreadsheet row ---------- */
+function flattenLogForExcel() {
+  const row = {
+    participant_id: log.participant_id,
+    desc_condition: log.desc_condition,
+    page_load_ts: log.page_load_ts,
+    time_to_first_action_ms: log.time_to_first_action_ms,
+    next_clicked_ts: log.next_clicked_ts,
+    top_comment_opened: log.top_level_comment.opened,
+    top_comment_submitted: log.top_level_comment.submitted,
+    top_comment_text: log.top_level_comment.text,
+    top_comment_submit_ts: log.top_level_comment.submit_ts
+  };
+
+  Object.keys(log.comments).forEach(cid => {
+    const c = log.comments[cid];
+    row[`${cid}_flagged`] = c.flagged;
+    row[`${cid}_flag_ts`] = c.flag_ts;
+    row[`${cid}_reply_opened`] = c.reply_opened;
+    row[`${cid}_reply_submitted`] = c.reply_submitted;
+    row[`${cid}_reply_text`] = c.reply_text;
+    row[`${cid}_reply_submit_ts`] = c.reply_submit_ts;
+  });
+
+  return row;
+}
+
+function downloadExcel() {
+  const row = flattenLogForExcel();
+  const worksheet = XLSX.utils.json_to_sheet([row]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Session");
+  XLSX.writeFile(workbook, `${log.participant_id}_interaction_log.xlsx`);
+}
+
+// Sends this participant's row to your Google Sheet. Uses mode:'no-cors'
+// because Apps Script doesn't return standard CORS headers — this means
+// the browser can't read a confirmation response, but the request still
+// goes through and the row still gets appended. Fire-and-forget by design.
+function sendToGoogleSheet() {
+  const row = flattenLogForExcel();
+  return fetch(GOOGLE_SHEETS_ENDPOINT, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain" }, // avoids a CORS preflight
+    body: JSON.stringify(row)
+  }).catch(err => {
+    // Network hiccup — the local .xlsx download (triggered alongside this)
+    // is the backup for exactly this situation.
+    console.error("Google Sheets submission failed:", err);
+  });
+}
+
+/* ---------- Next / opt-out ---------- */
+document.getElementById("next-btn").addEventListener("click", () => {
+  markFirstAction();
+  log.next_clicked_ts = Date.now();
+  renderDebug();
+
+  // Send to your Google Sheet (primary record) and download a local
+  // .xlsx as a backup, in case the network request fails silently.
+  sendToGoogleSheet();
+  downloadExcel();
+
+  // Swap the vignette out for a clean thank-you message.
+  document.querySelector(".instructions").style.display = "none";
+  document.querySelector(".card").style.display = "none";
+  document.querySelector(".continue-row").style.display = "none";
+  document.getElementById("thankyou-screen").style.display = "block";
+
+  // Redirect to QuestionPro after a short delay, so the browser
+  // has time to send the sheet submission before navigating away.
+  setTimeout(() => {
+    window.location.href = QUESTIONPRO_REDIRECT_URL;
+  }, REDIRECT_DELAY_MS);
+});
+
+document.getElementById("download-xlsx-btn").addEventListener("click", downloadExcel);
+
+document.getElementById("download-json-btn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${log.participant_id}_interaction_log.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+renderDebug();
+</script>
+</body>
+</html>
