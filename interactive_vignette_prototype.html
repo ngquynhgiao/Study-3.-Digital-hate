@@ -664,14 +664,6 @@ function flattenLogForExcel() {
   return row;
 }
 
-function downloadExcel() {
-  const row = flattenLogForExcel();
-  const worksheet = XLSX.utils.json_to_sheet([row]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Session");
-  XLSX.writeFile(workbook, `${log.participant_id}_interaction_log.xlsx`);
-}
-
 // Sends this participant's row to your Google Sheet. Uses mode:'no-cors'
 // because Apps Script doesn't return standard CORS headers — this means
 // the browser can't read a confirmation response, but the request still
