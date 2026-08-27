@@ -27,6 +27,22 @@
     align-items: center;
   }
 
+  .intro-screen {
+    width: 100%;
+    max-width: 560px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 26px;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .intro-continue-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 22px;
+  }
+
   .instructions {
     width: 100%;
     max-width: 560px;
@@ -268,7 +284,16 @@
 </head>
 <body>
 
-  <div class="instructions">
+  <!-- ---------- Page 1: victim-identity intro ---------- -->
+  <div class="intro-screen" id="intro-screen">
+    <p id="intro-text"><!-- filled by JS from INTRO_BY_VICTIM below --></p>
+    <div class="intro-continue-row">
+      <button class="next-btn" id="intro-continue-btn">Weiter</button>
+    </div>
+  </div>
+
+  <!-- ---------- Page 2: stimulus + interactive task ---------- -->
+  <div class="instructions" id="instructions" style="display:none;">
     <strong>Bevor Sie fortfahren:</strong>
     <ul>
       <li>Wenn Sie einen Kommentar <b>melden</b> möchten, fahren Sie mit der Maus darüber und klicken Sie auf das erscheinende Flaggen-Symbol.</li>
@@ -278,7 +303,7 @@
     </ul>
   </div>
 
-  <div class="card">
+  <div class="card" id="stimulus-card" style="display:none;">
     <div class="post-header">
       <div class="avatar">YK</div>
       <div>
@@ -306,7 +331,7 @@
     </div>
   </div>
 
-  <div class="continue-row">
+  <div class="continue-row" id="continue-row" style="display:none;">
     <button class="next-btn" id="next-btn">Next</button>
   </div>
 
@@ -377,6 +402,15 @@ const VICTIM_BY_CONDITION = {
   nonmuslim: { name: "Marcus K.", initials: "MK", postText: SHARED_POST_TEXT }
 };
 
+/* ---------- Page 1 intro text (identity manipulation) ----------
+   PLACEHOLDER WORDING — replace with your finalized vignette text.
+   Family-background framing per your design notes (Turkish-Muslim
+   vs. Austrian family), not birthplace/migration framing. */
+const INTRO_BY_VICTIM = {
+  muslim: "Yusuf K. ist 24 Jahre alt und spielt als Stürmer bei einem österreichischen Erstligaverein. Er ist in Wien aufgewachsen und stammt aus einer türkisch-muslimischen Familie. Am Samstag verlor seine Mannschaft ein wichtiges Spiel. Nach dem Spiel hat Yusuf auf Social Media gepostet und dabei seine Enttäuschung sowie sein Verantwortungsgefühl für die Niederlage der Mannschaft zum Ausdruck gebracht. Im Folgenden sehen Sie einen Screenshot seines Beitrags sowie der Kommentare dazu.",
+  nonmuslim: "Marcus K. ist 24 Jahre alt und spielt als Stürmer bei einem österreichischen Erstligaverein. Er ist in Wien aufgewachsen und stammt aus einer österreichischen Familie. Am Samstag verlor seine Mannschaft ein wichtiges Spiel. Nach dem Spiel hat Marcus auf Social Media gepostet und dabei seine Enttäuschung sowie sein Verantwortungsgefühl für die Niederlage der Mannschaft zum Ausdruck gebracht. Im Folgenden sehen Sie einen Screenshot seines Beitrags sowie der Kommentare dazu."
+};
+
 /* ---------- Assemble this participant's actual stimulus ---------- */
 const CONDITION = {
   comments: COMMENTS_BY_DESC[descCondition],
@@ -393,6 +427,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector(".post-header .name").textContent = CONDITION.victim.name;
   document.querySelector(".post-header .meta").textContent = `2 hours ago \u00B7 Forward`;
   document.querySelector(".post-body").textContent = CONDITION.victim.postText;
+
+  // Page 1: fill in the intro text for this participant's victim condition
+  document.getElementById("intro-text").textContent = INTRO_BY_VICTIM[victimCondition];
 });
 
 /* =========================================================
@@ -408,6 +445,8 @@ const log = {
   desc_condition: descCondition,
   victim_condition: victimCondition,
   page_load_ts: Date.now(),
+  intro_shown_ts: Date.now(),
+  intro_continue_ts: null,
   time_to_first_action_ms: null,
   comments: {},
   top_level_comment: {
@@ -622,6 +661,8 @@ function buildParticipantRow() {
     participant_id: log.participant_id,
     desc_condition: log.desc_condition,
     victim_condition: log.victim_condition,
+    intro_shown_ts: log.intro_shown_ts,
+    intro_continue_ts: log.intro_continue_ts,
     page_load_ts: log.page_load_ts,
     time_to_first_action_ms: log.time_to_first_action_ms,
     next_clicked_ts: log.next_clicked_ts,
@@ -659,6 +700,21 @@ function sendToGoogleSheet() {
     console.error("Google Sheets submission failed:", err);
   });
 }
+
+/* ---------- Page 1 -> Page 2 transition ---------- */
+document.getElementById("intro-continue-btn").addEventListener("click", () => {
+  log.intro_continue_ts = Date.now();
+  renderDebug();
+
+  document.getElementById("intro-screen").style.display = "none";
+  document.getElementById("instructions").style.display = "block";
+  document.getElementById("stimulus-card").style.display = "block";
+  document.getElementById("continue-row").style.display = "flex";
+
+  // Re-baseline time_to_first_action so it measures engagement with the
+  // stimulus itself, not time spent reading the page-1 intro text.
+  log.page_load_ts = Date.now();
+});
 
 /* ---------- Next / opt-out ---------- */
 document.getElementById("next-btn").addEventListener("click", () => {
