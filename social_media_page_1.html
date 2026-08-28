@@ -255,6 +255,15 @@
     margin-top: 8px;
   }
 
+  .progress-indicator {
+    width: 100%;
+    max-width: 560px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-align: right;
+  }
+
   /* ---------- Debug panel (testing only, hidden from participants) ---------- */
   .debug {
     width: 100%;
@@ -302,6 +311,8 @@
       <li>Wenn Sie nicht handeln möchten, klicken Sie auf <b>Next</b>, um fortzufahren.</li>
     </ul>
   </div>
+
+  <div class="progress-indicator" id="progress-indicator"></div>
 
   <div class="card" id="stimulus-card" style="display:none;">
     <div class="post-header">
@@ -355,15 +366,17 @@
 <script>
 /* =========================================================
    PARTICIPANT ID
-   Passed in via URL param from QuestionPro, e.g.:
-   interactive_vignette_prototype.html?pid=P014
-   Falls back to a timestamp-based ID for standalone testing.
+   Passed in via URL param from QuestionPro, e.g. ?pid=P014
    ========================================================= */
 const urlParams = new URLSearchParams(window.location.search);
 const participantId = urlParams.get("pid") || ("TEST_" + Date.now());
 
 /* =========================================================
-   CONDITION ASSIGNMENT (2 x 2)
+   CONDITION ASSIGNMENT
+   Descriptive norm and victim identity are held CONSTANT
+   across all three stimuli — the three posts are three
+   exemplars of the SAME experimental condition, per your
+   supervisor's recommendation. Only the post itself varies.
    ========================================================= */
 function pickCondition(paramName, options) {
   const fromUrl = urlParams.get(paramName);
@@ -371,127 +384,268 @@ function pickCondition(paramName, options) {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-const victimCondition = pickCondition("victim", ["muslim", "nonmuslim"]); // victim similarity
-const descCondition = pickCondition("desc", ["antihate", "prohate"]);     // descriptive norm
+const victimCondition = pickCondition("victim", ["muslim", "nonmuslim"]);
+const descCondition   = pickCondition("desc",   ["antihate", "prohate"]);
 
-const COMMENTS_BY_DESC = {
-  antihate: [
-    { id: "c1", name: "A. M.", text: "ein schlechtes Spiel löscht nicht eine ganze Saison. wir werden es nächstes Mal besser machen" },
-    { id: "c2", name: "J. R.", text: "kein Wunder, dass er versagt hat, diese Spieler ist es immer wichtiger, fünfmal am Tag zu beten als tatsächlich zu trainieren. schickt ihn zurück in das Land, aus dem er gekommen ist" },
-    { id: "c3", name: "T. B.", text: "nächstes Mal kommen wir stärker zurück" },
-    { id: "c4", name: "S. K.", text: "das passiert jedem, Kopf hoch {{FIRST_NAME}}, wir stehen zu 100% hinter dir" },
-    { id: "c5", name: "M. P.", text: "dieser Kommentarbereich ist ermüdend, lasst dem Typen seinen schlechten Abend" },
-    { id: "c6", name: "R. D.", text: "er hat uns das ganze Jahr über alles gegeben, manche Fans sollten sich beruhigen" }
-  ],
-  prohate: [
-    { id: "c1", name: "A. M.", text: "dieser Kommentarbereich ist ermüdend, lasst dem Typen seinen schlechten Abend" },
-    { id: "c2", name: "J. R.", text: "es ist unfassbar, dass wir Geld für so einen miserablen Spieler ausgeben. es sollten keine ausländischen Fußballer mehr hier spielen dürfen." },
-    { id: "c3", name: "T. B.", text: "kein Wunder, dass er versagt hat, diese Spieler ist es immer wichtiger, fünfmal am Tag zu beten als tatsächlich zu trainieren. schickt ihn zurück in das Land, aus dem er gekommen ist" },
-    { id: "c4", name: "S. K.", text: "deshalb solltest du dich auf die Ausbildung konzentrieren und nicht darauf, ein Prophet deiner Religion zu werden." },
-    { id: "c5", name: "M. P.", text: "deshalb dürfen wir nicht zulassen, dass dies das Spiel übernehmen. Schaltet sie aus!" },
-    { id: "c6", name: "R. D.", text: "diese Spieler sind nutzlos. wir brauchen sie hier nicht" }
-  ]
+/* =========================================================
+   STIMULUS ORDER RANDOMISATION
+   All three stimuli are shown to every participant, in a
+   random order. Order is logged so serial position can be
+   controlled for at analysis.
+   Override for testing with ?order=B,A,C
+   ========================================================= */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const STIMULUS_KEYS = ["A", "B", "C"];
+
+function pickOrder() {
+  const fromUrl = urlParams.get("order");
+  if (fromUrl) {
+    const parsed = fromUrl.split(",").map(s => s.trim().toUpperCase());
+    const valid = parsed.length === STIMULUS_KEYS.length &&
+                  STIMULUS_KEYS.every(k => parsed.includes(k));
+    if (valid) return parsed;
+  }
+  return shuffle(STIMULUS_KEYS);
+}
+
+const stimulusOrder = pickOrder();
+
+/* =========================================================
+   FIXED TARGET COMMENT
+   Occupies slot c3 in EVERY stimulus and EVERY descriptive-norm
+   condition. This is the comment your DV items re-quote verbatim,
+   so its wording and its slot must never vary — otherwise
+   c3_flagged is not comparable across conditions or across posts.
+
+   It is also deliberately match-outcome-independent (it does not
+   reference winning, losing or a specific performance), so the
+   same text is plausible under all three posts.
+
+   It is written out in full in all six arrays below so you can read
+   each comment section straight through. IF YOU EDIT IT, EDIT ALL SIX,
+   and change the quoted wording in your DV items to match. There is a
+   consistency check further down that will warn you in the console
+   (and in the debug panel) if the six ever drift apart.
+   ========================================================= */
+const TARGET_COMMENT_ID = "c3";
+
+const STIMULI = {
+
+  /* ---------- A: Niederlage (your existing stimulus) ---------- */
+  A: {
+    label: "Niederlage",
+    image: "post_photo.jpg",
+    postText: "Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. \uD83D\uDE4F",
+    comments: {
+      antihate: [
+        { id: "c1", name: "A. M.", text: "ein schlechtes Spiel löscht nicht eine ganze Saison. wir werden es nächstes Mal besser machen" },
+        { id: "c2", name: "J. R.", text: "nächstes Mal kommen wir stärker zurück" },
+        { id: "c3", name: "T. B.", text: "diese Spieler sind nutzlos. wir brauchen sie hier nicht" },  
+        { id: "c4", name: "S. K.", text: "das passiert jedem, Kopf hoch {{FIRST_NAME}}, wir stehen zu 100% hinter dir" },
+        { id: "c5", name: "M. P.", text: "dieser Kommentarbereich ist ermüdend, lasst dem Typen seinen schlechten Abend" },
+        { id: "c6", name: "R. D.", text: "er hat uns das ganze Jahr über alles gegeben, manche Fans sollten sich beruhigen" }
+      ],
+      prohate: [
+        { id: "c1", name: "A. M.", text: "Kein Wunder, dass er gescheitert ist. Diese Spieler haben auf dem Platz nichts geleistet." },
+        { id: "c2", name: "J. R.", text: "Es ist unglaublich, dass wir Geld für so einen miserablen Spieler ausgeben. Solche Fußballer sollten hier nicht mehr spielen dürfen." },
+        { id: "c3", name: "T. B.", text: "diese Spieler sind nutzlos. wir brauchen sie hier nicht" },   
+        { id: "c4", name: "S. K.", text: "dieser Kommentarbereich ist ermüdend, lasst dem Typen seinen schlechten Abend" },
+        { id: "c5", name: "M. P.", text: "du solltest lieber mehr trainieren, anstatt hier rumzuposaunen, als hättest du gar kein Schamgefühl." },
+        { id: "c6", name: "R. D.", text: "Die heutige Vorstellung ist eine solche Enttäuschung. Du solltest dich dafür schämen!" }
+      ],
+    }
+  },
+
+  /* ---------- B: Sieg ohne eigenen Treffer ---------- */
+  B: {
+    label: "Sieg ohne eigenen Treffer",
+    image: "post_photo_b.jpg",
+    postText: "Drei Punkte mitgenommen heute. Die Mannschaft hat das großartig gemacht, ich freue mich für die Jungs. Ich weiß, dass bei mir mehr geht — daran arbeite ich weiter. Danke an alle, die zu uns stehen.",
+    comments: {
+      antihate: [
+        { id: "c1", name: "A. M.", text: "auch ohne Treffer hat er vorne die Räume aufgemacht, das sieht in der Statistik halt niemand" },
+        { id: "c2", name: "J. R.", text: "Stürmer haben Phasen ohne Tor, das gehört einfach dazu. Kopf hoch" },
+        { id: "c3", name: "T. B.", text: "du tust ja gar nichts. Halt die Klappe und trainier mehr.R" },   
+        { id: "c4", name: "S. K.", text: "wir haben gewonnen und ihr streitet trotzdem. gönnt es der Mannschaft doch einfach" },
+        { id: "c5", name: "M. P.", text: "er hat die ganze Saison gearbeitet, ein Spiel ohne Tor ändert daran nichts" },
+        { id: "c6", name: "R. D.", text: "die Kommentare hier sind echt anstrengend, lasst {{FIRST_NAME}} doch seinen Abend" }
+      ],
+      prohate: [
+        { id: "c1", name: "A. M.", text: "drei Saisonen und man wartet immer noch auf irgendwas" },
+        { id: "c2", name: "J. R.", text: "wieder nur mitgelaufen, die anderen machen die Arbeit" },
+        { id: "c3", name: "T. B.", text: "du tust ja gar nichts. Halt die Klappe und trainier mehr." },  
+        { id: "c4", name: "S. K.", text: "wir haben gewonnen und ihr streitet trotzdem. gönnt es der Mannschaft doch einfach" },
+        { id: "c5", name: "M. P.", text: "gewonnen trotz ihm, nicht wegen ihm" },
+        { id: "c6", name: "R. D.", text: "was macht der überhaupt noch auf dem Platz" }
+      ],
+    }
+  },
+
+  /* ---------- C: Cup-Aus ---------- */
+  C: {
+    label: "Cup-Aus",
+    image: "post_photo_c.jpg",
+    postText: "Das war es für uns im Cup. Wir haben alles reingelegt, heute hat es nicht gereicht. Danke an alle, die mitgefahren sind und uns unterstützt haben. Jetzt konzentrieren wir uns auf die Liga.",
+    comments: {
+      antihate: [
+        { id: "c1", name: "A. M.", text: "die Mannschaft hat alles gegeben, mehr kann man nicht verlangen" },
+        { id: "c2", name: "J. R.", text: "so ist das im Cup, ein schwacher Abend und du bist draußen. Kopf hoch" },
+        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen religiösen Snobismus." },  
+        { id: "c4", name: "S. K.", text: "eine Niederlage ist nie eine einzelne Person" },
+        { id: "c5", name: "M. P.", text: "er war einer der wenigen, die überhaupt etwas versucht haben" },
+        { id: "c6", name: "R. D.", text: "könnt ihr nicht einmal verlieren, ohne jemanden zu suchen, dem ihr die Schuld gebt" }
+      ],
+      prohate: [
+        { id: "c1", name: "A. M.", text: "immer die gleiche Geschichte, wenn es drauf ankommt" },
+        { id: "c2", name: "J. R.", text: "wenn es wichtig wird, ist er nicht da" },
+        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen religiösen Snobismus." },   
+        { id: "c4", name: "S. K.", text: "eine Niederlage ist nie eine einzelne Person" },
+        { id: "c5", name: "M. P.", text: "so einen im Sturm, und dann wundert man sich" },
+        { id: "c6", name: "R. D.", text: "der Verein hat sich das mit ihm selbst eingebrockt" }
+      ],
+    }
+  }
 };
 
-/* Victim identity: name/initials vary by condition, postText stays
-   identical across both so only the identity cue itself changes. */
-const SHARED_POST_TEXT = "Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. \uD83D\uDE4F";
+const stimulusWarnings = [];
 
+(function checkStimuli() {
+  const expectedIds = ["c1", "c2", "c3", "c4", "c5", "c6"];
+  let reference = null;
+
+  Object.keys(STIMULI).forEach(k => {
+    Object.keys(STIMULI[k].comments).forEach(cond => {
+      const arr = STIMULI[k].comments[cond];
+      if (arr.length === 0) return; 
+
+      if (arr.length !== 6) {
+        stimulusWarnings.push(`${k}/${cond}: ${arr.length} comments, expected 6`);
+      }
+      arr.forEach((c, i) => {
+        if (c.id !== expectedIds[i]) {
+          stimulusWarnings.push(`${k}/${cond}: slot ${i + 1} has id "${c.id}", expected "${expectedIds[i]}"`);
+        }
+      });
+
+      const t = arr.find(c => c.id === TARGET_COMMENT_ID);
+      if (!t) {
+        stimulusWarnings.push(`${k}/${cond}: no comment with id "${TARGET_COMMENT_ID}"`);
+        return;
+      }
+      if (reference === null) {
+        reference = t;
+      } else if (t.text !== reference.text || t.name !== reference.name) {
+        stimulusWarnings.push(`${k}/${cond}: target comment does not match the others — check for a typo`);
+      }
+    });
+  });
+
+  if (stimulusWarnings.length) {
+    console.warn("STIMULUS CHECK FAILED:\n" + stimulusWarnings.join("\n"));
+  } else {
+    console.log("Stimulus check passed: target comment identical in all conditions.");
+  }
+})();
+
+/* ---------- Victim identity ---------- */
 const VICTIM_BY_CONDITION = {
-  muslim:    { name: "Yusuf K.",  initials: "YK", postText: SHARED_POST_TEXT },
-  nonmuslim: { name: "Marcus K.", initials: "MK", postText: SHARED_POST_TEXT }
+  muslim:    { name: "Yusuf K.",  initials: "YK" },
+  nonmuslim: { name: "Marcus K.", initials: "MK" }
 };
 
-/* ---------- Page 1 intro text (identity manipulation) ----------
-   PLACEHOLDER WORDING — replace with your finalized vignette text.
-   Family-background framing per your design notes (Turkish-Muslim
-   vs. Austrian family), not birthplace/migration framing. */
+const victim = VICTIM_BY_CONDITION[victimCondition];
+const victimFirstName = victim.name.split(" ")[0];
+
+/* ---------- Page 1 intro text ----------
+   Reworded for a three-post series: the framing now covers
+   repeated posting across matches rather than one single match,
+   and covers both wins and losses. "repräsentative Auswahl" is
+   load-bearing — it licenses reading the comment mix as a
+   population estimate rather than a curated selection. */
 const INTRO_BY_VICTIM = {
-  muslim: "Yusuf K. ist 24 Jahre alt und spielt als Stürmer bei einem österreichischen Erstligaverein. Er ist in Wien aufgewachsen und stammt aus einer türkisch-muslimischen Familie. Am Samstag verlor seine Mannschaft ein wichtiges Spiel. Nach dem Spiel hat Yusuf auf Social Media gepostet und dabei seine Enttäuschung sowie sein Verantwortungsgefühl für die Niederlage der Mannschaft zum Ausdruck gebracht. Im Folgenden sehen Sie einen Screenshot seines Beitrags sowie der Kommentare dazu.",
-  nonmuslim: "Marcus K. ist 24 Jahre alt und spielt als Stürmer bei einem österreichischen Erstligaverein. Er ist in Wien aufgewachsen und stammt aus einer österreichischen Familie. Am Samstag verlor seine Mannschaft ein wichtiges Spiel. Nach dem Spiel hat Marcus auf Social Media gepostet und dabei seine Enttäuschung sowie sein Verantwortungsgefühl für die Niederlage der Mannschaft zum Ausdruck gebracht. Im Folgenden sehen Sie einen Screenshot seines Beitrags sowie der Kommentare dazu."
+  muslim: "Yusuf K., 24 Jahre alt, wuchs in Oberösterreich in einer türkisch-muslimischen Familie auf und spielt seit drei Saisons als Stürmer bei einem österreichischen Fußballverein. Wie im Fußball üblich, gewinnt dieser Verein manche wichtigen Spiele und verliert andere. Nach jedem Spiel postet Yusuf typischerweise kurz seine Gedanken auf Social Media, woraufhin er in der Regel zahlreiche öffentliche Kommentare von anderen Nutzerinnen und Nutzern erhält. Im Folgenden sehen Sie Screenshots seiner Beiträge sowie jeweils eine repräsentative Auswahl der Kommentare.",
+  nonmuslim: "Marcus K., 24 Jahre alt, wuchs in Oberösterreich in einer österreichischen Familie auf und spielt seit drei Saisons als Stürmer bei einem österreichischen Fußballverein. Wie im Fußball üblich, gewinnt dieser Verein manche wichtigen Spiele und verliert andere. Nach jedem Spiel postet Marcus typischerweise kurz seine Gedanken auf Social Media, woraufhin er in der Regel zahlreiche öffentliche Kommentare von anderen Nutzerinnen und Nutzern erhält. Im Folgenden sehen Sie Screenshots seiner Beiträge sowie jeweils eine repräsentative Auswahl der Kommentare."
 };
-
-/* ---------- Assemble this participant's actual stimulus ---------- */
-const CONDITION = {
-  comments: COMMENTS_BY_DESC[descCondition],
-  victim: VICTIM_BY_CONDITION[victimCondition]
-};
-
-// First name only, used to fill {{FIRST_NAME}} in comment text below —
-// e.g. "Yusuf K." -> "Yusuf", "Marcus K." -> "Marcus".
-const victimFirstName = CONDITION.victim.name.split(" ")[0];
-
-/* ---------- Render victim-dependent post header/body ---------- */
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelector(".post-header .avatar").textContent = CONDITION.victim.initials;
-  document.querySelector(".post-header .name").textContent = CONDITION.victim.name;
-  document.querySelector(".post-header .meta").textContent = `2 hours ago \u00B7 Forward`;
-  document.querySelector(".post-body").textContent = CONDITION.victim.postText;
-
-  // Page 1: fill in the intro text for this participant's victim condition
-  document.getElementById("intro-text").textContent = INTRO_BY_VICTIM[victimCondition];
-});
 
 /* =========================================================
    DATA LOG
-   One object per participant. comments{} holds per-comment
-   flag/reply data keyed by comment id. This is what gets
-   flattened into a single row and sent to Google Sheets, and is
-   also what you'd hand to jsPsych's on_finish in the real
-   deployment.
+   One object per participant. Per-stimulus blocks are keyed by
+   stimulus letter and carry their own serial position, so
+   position can be entered as a covariate at analysis.
    ========================================================= */
 const log = {
   participant_id: participantId,
   desc_condition: descCondition,
   victim_condition: victimCondition,
-  page_load_ts: Date.now(),
+  stimulus_order: stimulusOrder.join(","),
+  target_comment_id: TARGET_COMMENT_ID,
   intro_shown_ts: Date.now(),
   intro_continue_ts: null,
-  time_to_first_action_ms: null,
-  comments: {},
-  top_level_comment: {
-    opened: false,
-    submitted: false,
-    text: null,
-    submit_ts: null
-  },
+  stimuli: {},
   next_clicked_ts: null
 };
 
-CONDITION.comments.forEach(c => {
-  log.comments[c.id] = {
-    flagged: false,
-    flag_ts: null,
-    reply_opened: false,
-    reply_opened_ts: null,
-    reply_submitted: false,
-    reply_text: null,
-    reply_submit_ts: null
+stimulusOrder.forEach((key, idx) => {
+  const block = {
+    position: idx + 1,
+    shown_ts: null,
+    next_ts: null,
+    time_to_first_action_ms: null,
+    comments: {},
+    top_level_comment: { opened: false, submitted: false, text: null, submit_ts: null }
   };
+  STIMULI[key].comments[descCondition].forEach(c => {
+    block.comments[c.id] = {
+      flagged: false, flag_ts: null,
+      reply_opened: false, reply_opened_ts: null,
+      reply_submitted: false, reply_text: null, reply_submit_ts: null
+    };
+  });
+  log.stimuli[key] = block;
 });
 
+function renderDebug() {
+  const warnBanner = stimulusWarnings.length
+    ? "!!! STIMULUS CHECK FAILED !!!\n" + stimulusWarnings.join("\n") + "\n\n"
+    : "Stimulus check: OK\n\n";
+  document.getElementById("debug-output").textContent =
+    warnBanner + JSON.stringify(log, null, 2);
+}
+
+/* =========================================================
+   STIMULUS RENDERING
+   The same card is reused for all three posts; it is torn down
+   and rebuilt between them so participants cannot scroll back.
+   ========================================================= */
+let currentIndex = 0;
+const list = document.getElementById("comment-list");
+
+function currentKey() { return stimulusOrder[currentIndex]; }
+function currentBlock() { return log.stimuli[currentKey()]; }
+
 function markFirstAction() {
-  if (log.time_to_first_action_ms === null) {
-    log.time_to_first_action_ms = Date.now() - log.page_load_ts;
+  const b = currentBlock();
+  if (b.time_to_first_action_ms === null && b.shown_ts) {
+    b.time_to_first_action_ms = Date.now() - b.shown_ts;
   }
 }
 
-function renderDebug() {
-  document.getElementById("debug-output").textContent = JSON.stringify(log, null, 2);
-}
-
-/* ---------- Render comments ---------- */
-const list = document.getElementById("comment-list");
-
-CONDITION.comments.forEach(c => {
+function renderComment(c) {
+  const b = currentBlock();
   const row = document.createElement("div");
   row.className = "comment";
   row.dataset.commentId = c.id;
 
-  // Fill in the victim's first name wherever {{FIRST_NAME}} appears
-  // in this comment's text (only c4 uses it right now, but this
-  // works for any comment that includes the placeholder).
   const renderedText = c.text.replace(/{{FIRST_NAME}}/g, victimFirstName);
+  const uid = `${currentKey()}-${c.id}`;
 
   row.innerHTML = `
     <div class="avatar">${c.name.split(" ").map(p => p[0]).join("")}</div>
@@ -502,8 +656,8 @@ CONDITION.comments.forEach(c => {
         <button type="button" class="reply-toggle">Reply</button>
         <span class="status-tag" style="display:none;">Flagged</span>
       </div>
-      <div class="reply-box" id="reply-box-${c.id}">
-        <textarea id="reply-textarea-${c.id}" placeholder="Write a reply..."></textarea>
+      <div class="reply-box" id="reply-box-${uid}">
+        <textarea id="reply-textarea-${uid}" placeholder="Write a reply..."></textarea>
         <div class="reply-actions">
           <button type="button" class="cancel-reply">Cancel</button>
           <button type="button" class="post-btn post-reply" disabled>Post</button>
@@ -515,7 +669,6 @@ CONDITION.comments.forEach(c => {
 
   list.appendChild(row);
 
-  // ---- Flag button (hover-revealed, per instruction) ----
   const flagBtn = row.querySelector(".flag-btn");
   flagBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -523,28 +676,26 @@ CONDITION.comments.forEach(c => {
     flagBtn.classList.add("flagged");
     flagBtn.textContent = "⚑ Flagged";
     row.querySelector(".status-tag").style.display = "inline-block";
-
-    if (!log.comments[c.id].flagged) {
-      log.comments[c.id].flagged = true;
-      log.comments[c.id].flag_ts = Date.now();
+    if (!b.comments[c.id].flagged) {
+      b.comments[c.id].flagged = true;
+      b.comments[c.id].flag_ts = Date.now();
     }
     renderDebug();
   });
 
-  // ---- Reply button (always visible, per comment) ----
-  const replyToggle = row.querySelector(".reply-toggle");
-  const replyBox = row.querySelector(`#reply-box-${c.id}`);
-  const replyTextarea = row.querySelector(`#reply-textarea-${c.id}`);
-  const postReplyBtn = row.querySelector(".post-reply");
-  const cancelReplyBtn = row.querySelector(".cancel-reply");
+  const replyToggle   = row.querySelector(".reply-toggle");
+  const replyBox      = row.querySelector(`#reply-box-${uid}`);
+  const replyTextarea = row.querySelector(`#reply-textarea-${uid}`);
+  const postReplyBtn  = row.querySelector(".post-reply");
+  const cancelReplyBtn= row.querySelector(".cancel-reply");
 
   replyToggle.addEventListener("click", () => {
     markFirstAction();
     const opening = !replyBox.classList.contains("open");
     replyBox.classList.toggle("open");
-    if (opening && !log.comments[c.id].reply_opened) {
-      log.comments[c.id].reply_opened = true;
-      log.comments[c.id].reply_opened_ts = Date.now();
+    if (opening && !b.comments[c.id].reply_opened) {
+      b.comments[c.id].reply_opened = true;
+      b.comments[c.id].reply_opened_ts = Date.now();
     }
     if (opening) replyTextarea.focus();
     renderDebug();
@@ -563,9 +714,9 @@ CONDITION.comments.forEach(c => {
   postReplyBtn.addEventListener("click", () => {
     const text = replyTextarea.value.trim();
     if (!text) return;
-    log.comments[c.id].reply_submitted = true;
-    log.comments[c.id].reply_text = text;
-    log.comments[c.id].reply_submit_ts = Date.now();
+    b.comments[c.id].reply_submitted = true;
+    b.comments[c.id].reply_text = text;
+    b.comments[c.id].reply_submit_ts = Date.now();
 
     const replyRow = document.createElement("div");
     replyRow.className = "comment comment-reply";
@@ -580,23 +731,60 @@ CONDITION.comments.forEach(c => {
       </div>
     `;
     row.insertAdjacentElement("afterend", replyRow);
-
     replyBox.remove();
     replyToggle.remove();
-
     renderDebug();
   });
-});
+}
 
-/* ---------- Top-level comment bar (direct reply to the post) ---------- */
+function renderStimulus() {
+  const key = currentKey();
+  const stim = STIMULI[key];
+  const b = currentBlock();
+
+  // Post header and body
+  document.querySelector(".post-header .avatar").textContent = victim.initials;
+  document.querySelector(".post-header .name").textContent = victim.name;
+  document.querySelector(".post-header .meta").textContent = "2 hours ago \u00B7 Forward";
+  document.querySelector(".post-body").textContent = stim.postText;
+
+  const img = document.querySelector(".post-image");
+  img.src = stim.image;
+
+  // Comment count varies a little per post so the three don't look cloned
+  document.getElementById("comment-count").textContent =
+    [345, 288, 412][STIMULUS_KEYS.indexOf(key)];
+
+  // Reset the top-level comment bar
+  const ta  = document.getElementById("top-comment-textarea");
+  const btn = document.getElementById("top-comment-post");
+  ta.value = "";
+  ta.disabled = false;
+  btn.disabled = true;
+  btn.textContent = "Post";
+
+  // Rebuild the comment list
+  list.innerHTML = "";
+  stim.comments[descCondition].forEach(renderComment);
+
+  // Progress indicator + button label on the final post
+  document.getElementById("progress-indicator").textContent =
+    `Beitrag ${currentIndex + 1} von ${stimulusOrder.length}`;
+  document.getElementById("next-btn").textContent =
+    (currentIndex === stimulusOrder.length - 1) ? "Fertig" : "Next";
+
+  b.shown_ts = Date.now();
+  window.scrollTo(0, 0);
+  renderDebug();
+}
+
+/* ---------- Top-level comment bar ---------- */
 const topTextarea = document.getElementById("top-comment-textarea");
-const topPostBtn = document.getElementById("top-comment-post");
+const topPostBtn  = document.getElementById("top-comment-post");
 
 topTextarea.addEventListener("focus", () => {
   markFirstAction();
-  if (!log.top_level_comment.opened) {
-    log.top_level_comment.opened = true;
-  }
+  currentBlock().top_level_comment.opened = true;
 });
 
 topTextarea.addEventListener("input", () => {
@@ -606,9 +794,10 @@ topTextarea.addEventListener("input", () => {
 topPostBtn.addEventListener("click", () => {
   const text = topTextarea.value.trim();
   if (!text) return;
-  log.top_level_comment.submitted = true;
-  log.top_level_comment.text = text;
-  log.top_level_comment.submit_ts = Date.now();
+  const tlc = currentBlock().top_level_comment;
+  tlc.submitted = true;
+  tlc.text = text;
+  tlc.submit_ts = Date.now();
   topPostBtn.disabled = true;
   topPostBtn.textContent = "Posted";
   topTextarea.disabled = true;
@@ -626,112 +815,165 @@ topPostBtn.addEventListener("click", () => {
     </div>
   `;
   list.insertBefore(newRow, list.firstChild);
-  document.getElementById("comment-count").textContent =
-    parseInt(document.getElementById("comment-count").textContent, 10) + 1;
-
+  const cc = document.getElementById("comment-count");
+  cc.textContent = parseInt(cc.textContent, 10) + 1;
   renderDebug();
 });
 
 /* =========================================================
-   REDIRECT TARGET
-   Set this to your actual QuestionPro survey URL for the next
-   block. If you need to pass the participant ID back through
-   (recommended, so QuestionPro can match this session to the
-   right respondent), append it as a query param QuestionPro
-   expects — check your survey's URL-passing setup for the
-   exact parameter name it wants.
+   REDIRECT + DATA DESTINATION
    ========================================================= */
 const QUESTIONPRO_REDIRECT_URL = `https://univie.questionpro.eu/t/AB3u5ttZB3woO5?custom1=${participantId}`;
-const REDIRECT_DELAY_MS = 1800; // gives the sheet submission time to fire before navigating away
-
-/* =========================================================
-   DATA DESTINATION — Google Sheets via Apps Script
-   Every participant's data is sent here as their own row.
-   ========================================================= */
+const REDIRECT_DELAY_MS = 1800;
 const GOOGLE_SHEETS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx0lsv9Wggatj-KAgpDgXDpDFulEIiUBpYuF-EzGNHjjxYoxGYb5L6HJmccnlHlM-b1Hw/exec";
 
-/* ---------- Debug panel: only visible during testing ---------- */
 if (urlParams.get("debug") === "1") {
   document.getElementById("debug-panel").style.display = "block";
 }
 
-/* ---------- Flatten log into one row (sent to Google Sheets) ---------- */
+/* ---------- Flatten to one row ----------
+   Column names are prefixed with the stimulus letter, so A_c3_flagged
+   is always the target comment under the loss post regardless of the
+   order that participant saw. Aggregate counts across the three posts
+   are appended at the end — total_target_flags is your count DV.
+   ========================================================= */
 function buildParticipantRow() {
   const row = {
     participant_id: log.participant_id,
     desc_condition: log.desc_condition,
     victim_condition: log.victim_condition,
+    stimulus_order: log.stimulus_order,
+    target_comment_id: log.target_comment_id,
     intro_shown_ts: log.intro_shown_ts,
     intro_continue_ts: log.intro_continue_ts,
-    page_load_ts: log.page_load_ts,
-    time_to_first_action_ms: log.time_to_first_action_ms,
-    next_clicked_ts: log.next_clicked_ts,
-    top_comment_opened: log.top_level_comment.opened,
-    top_comment_submitted: log.top_level_comment.submitted,
-    top_comment_text: log.top_level_comment.text,
-    top_comment_submit_ts: log.top_level_comment.submit_ts
+    next_clicked_ts: log.next_clicked_ts
   };
 
-  Object.keys(log.comments).forEach(cid => {
-    const c = log.comments[cid];
-    row[`${cid}_flagged`] = c.flagged;
-    row[`${cid}_flag_ts`] = c.flag_ts;
-    row[`${cid}_reply_opened`] = c.reply_opened;
-    row[`${cid}_reply_submitted`] = c.reply_submitted;
-    row[`${cid}_reply_text`] = c.reply_text;
-    row[`${cid}_reply_submit_ts`] = c.reply_submit_ts;
+  let totalFlags = 0, totalTargetFlags = 0, totalReplies = 0, totalTopComments = 0;
+  let totalRepliesOpened = 0, totalIntervention = 0, postsWithAction = 0;
+
+  STIMULUS_KEYS.forEach(k => {
+    const b = log.stimuli[k];
+    row[`${k}_position`] = b.position;
+    row[`${k}_shown_ts`] = b.shown_ts;
+    row[`${k}_next_ts`] = b.next_ts;
+    row[`${k}_dwell_ms`] = (b.shown_ts && b.next_ts) ? (b.next_ts - b.shown_ts) : null;
+    row[`${k}_ttfa_ms`] = b.time_to_first_action_ms;
+    row[`${k}_top_comment_opened`] = b.top_level_comment.opened;
+    row[`${k}_top_comment_submitted`] = b.top_level_comment.submitted;
+    row[`${k}_top_comment_text`] = b.top_level_comment.text;
+    row[`${k}_top_comment_submit_ts`] = b.top_level_comment.submit_ts;
+
+    // ---- Per-post counters ----
+    let flagCount = 0, replyCount = 0, replyOpenedCount = 0;
+    let targetFlagged = false, targetReplied = false;
+    const topComment = b.top_level_comment.submitted ? 1 : 0;
+
+    Object.keys(b.comments).forEach(cid => {
+      const c = b.comments[cid];
+      row[`${k}_${cid}_flagged`] = c.flagged;
+      row[`${k}_${cid}_flag_ts`] = c.flag_ts;
+      row[`${k}_${cid}_reply_opened`] = c.reply_opened;
+      row[`${k}_${cid}_reply_submitted`] = c.reply_submitted;
+      row[`${k}_${cid}_reply_text`] = c.reply_text;
+      row[`${k}_${cid}_reply_submit_ts`] = c.reply_submit_ts;
+
+      if (c.flagged) {
+        flagCount++;
+        if (cid === log.target_comment_id) targetFlagged = true;
+      }
+      if (c.reply_opened) replyOpenedCount++;
+      if (c.reply_submitted) {
+        replyCount++;
+        if (cid === log.target_comment_id) targetReplied = true;
+      }
+    });
+
+    row[`${k}_flag_count`]          = flagCount;         // 0-6
+    row[`${k}_target_flagged`]      = targetFlagged;     // did they flag c3 on THIS post
+    row[`${k}_reply_count`]         = replyCount;        // 0-6
+    row[`${k}_target_replied`]      = targetReplied;     // did they reply to c3 on THIS post
+    row[`${k}_reply_opened_count`]  = replyOpenedCount;  // opened but not necessarily sent
+    row[`${k}_top_comment_count`]   = topComment;        // 0-1
+    row[`${k}_intervention_count`]  = flagCount + replyCount + topComment;  // 0-13
+    row[`${k}_any_intervention`]    = (flagCount + replyCount + topComment) > 0;
+
+    totalFlags += flagCount;
+    totalReplies += replyCount;
+    totalRepliesOpened += replyOpenedCount;
+    totalTopComments += topComment;
+    if (targetFlagged) totalTargetFlags++;
+    totalIntervention += flagCount + replyCount + topComment;
+    if (flagCount + replyCount + topComment > 0) postsWithAction++;
   });
+
+  /* ---- Counters ordered by the participant's viewing sequence ----
+     pos1_* is whichever post they saw first. Lets you test for order
+     effects and fatigue directly without re-deriving from
+     stimulus_order in R. */
+  stimulusOrder.forEach((k, idx) => {
+    row[`pos${idx + 1}_stimulus`] = k;
+    row[`pos${idx + 1}_intervention_count`] = row[`${k}_intervention_count`];
+    row[`pos${idx + 1}_flag_count`] = row[`${k}_flag_count`];
+    row[`pos${idx + 1}_target_flagged`] = row[`${k}_target_flagged`];
+  });
+
+  row.total_flags = totalFlags;                  // 0-18
+  row.total_target_flags = totalTargetFlags;     // 0-3  <- primary count DV
+  row.total_replies = totalReplies;              // 0-18
+  row.total_replies_opened = totalRepliesOpened; // 0-18
+  row.total_top_comments = totalTopComments;     // 0-3
+  row.total_intervention_count = totalIntervention; // 0-39
+  row.posts_with_any_action = postsWithAction;   // 0-3
 
   return row;
 }
 
-// Sends this participant's row to your Google Sheet. Uses mode:'no-cors'
-// because Apps Script doesn't return standard CORS headers — this means
-// the browser can't read a confirmation response, but the request still
-// goes through and the row still gets appended. Fire-and-forget by design.
 function sendToGoogleSheet() {
   const row = buildParticipantRow();
   return fetch(GOOGLE_SHEETS_ENDPOINT, {
     method: "POST",
     mode: "no-cors",
-    headers: { "Content-Type": "text/plain" }, // avoids a CORS preflight
+    headers: { "Content-Type": "text/plain" },
     body: JSON.stringify(row)
-  }).catch(err => {
-    console.error("Google Sheets submission failed:", err);
-  });
+  }).catch(err => console.error("Google Sheets submission failed:", err));
 }
 
-/* ---------- Page 1 -> Page 2 transition ---------- */
+/* ---------- Page 1 intro ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("intro-text").textContent = INTRO_BY_VICTIM[victimCondition];
+});
+
 document.getElementById("intro-continue-btn").addEventListener("click", () => {
   log.intro_continue_ts = Date.now();
-  renderDebug();
-
   document.getElementById("intro-screen").style.display = "none";
   document.getElementById("instructions").style.display = "block";
   document.getElementById("stimulus-card").style.display = "block";
   document.getElementById("continue-row").style.display = "flex";
-
-  // Re-baseline time_to_first_action so it measures engagement with the
-  // stimulus itself, not time spent reading the page-1 intro text.
-  log.page_load_ts = Date.now();
+  renderStimulus();
 });
 
-/* ---------- Next / opt-out ---------- */
+/* ---------- Next: advance through the three posts ---------- */
 document.getElementById("next-btn").addEventListener("click", () => {
   markFirstAction();
+  currentBlock().next_ts = Date.now();
+
+  if (currentIndex < stimulusOrder.length - 1) {
+    currentIndex++;
+    renderStimulus();
+    return;
+  }
+
   log.next_clicked_ts = Date.now();
   renderDebug();
-
   sendToGoogleSheet();
 
-  document.querySelector(".instructions").style.display = "none";
-  document.querySelector(".card").style.display = "none";
-  document.querySelector(".continue-row").style.display = "none";
+  document.getElementById("instructions").style.display = "none";
+  document.getElementById("stimulus-card").style.display = "none";
+  document.getElementById("continue-row").style.display = "none";
   document.getElementById("thankyou-screen").style.display = "block";
 
-  setTimeout(() => {
-    window.location.href = QUESTIONPRO_REDIRECT_URL;
-  }, REDIRECT_DELAY_MS);
+  setTimeout(() => { window.location.href = QUESTIONPRO_REDIRECT_URL; }, REDIRECT_DELAY_MS);
 });
 
 document.getElementById("download-json-btn").addEventListener("click", () => {
