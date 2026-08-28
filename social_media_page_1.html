@@ -326,7 +326,7 @@
       Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. 🙏
     </div>
     <img class="post-image" src="post_photo.jpg" alt="Post image">
-    <div class="post-stats">👍 1.2K &nbsp;·&nbsp; 💬 <span id="comment-count">345</span> comments</div>
+    <div class="post-stats">👍 <span id="like-count">1,2 Tsd.</span> &nbsp;·&nbsp; 💬 <span id="comment-count">345</span> Kommentare</div>
 
     <!-- Top-level comment bar: replying to the POST directly,
          separate from replying to any specific comment. -->
@@ -419,30 +419,28 @@ function pickOrder() {
 const stimulusOrder = pickOrder();
 
 /* =========================================================
-   FIXED TARGET COMMENT
-   Occupies slot c3 in EVERY stimulus and EVERY descriptive-norm
-   condition. This is the comment your DV items re-quote verbatim,
-   so its wording and its slot must never vary — otherwise
-   c3_flagged is not comparable across conditions or across posts.
+   STIMULUS MATERIALS
 
-   It is also deliberately match-outcome-independent (it does not
-   reference winning, losing or a specific performance), so the
-   same text is plausible under all three posts.
+   Three posts (A, B, C), each with its own comment section in two
+   descriptive-norm conditions. Slot logic, identical throughout:
 
-   It is written out in full in all six arrays below so you can read
-   each comment section straight through. IF YOU EDIT IT, EDIT ALL SIX,
-   and change the quoted wording in your DV items to match. There is a
-   consistency check further down that will warn you in the console
-   (and in the debug panel) if the six ever drift apart.
+     antihate : S  S  H  S  S  S    -> 5 supportive / 1 hostile
+     prohate  : H  H  H  S  H  H    -> 1 supportive / 5 hostile
+
+   Slot c3 carries the hostile comment in both conditions and slot c4
+   the supportive one, so the odd-one-out always sits in the same
+   position. Commenter initials are fixed per slot across all three
+   posts. {{FIRST_NAME}} is replaced at render time with Yusuf or
+   Marcus depending on the victim condition.
    ========================================================= */
-const TARGET_COMMENT_ID = "c3";
-
 const STIMULI = {
 
   /* ---------- A: Niederlage (your existing stimulus) ---------- */
   A: {
     label: "Niederlage",
     image: "post_photo.jpg",
+    likes: "1,2 Tsd.",
+    commentCount: 345,
     postText: "Schwieriger Tag heute. Wir haben nicht das Ergebnis bekommen, das wir wollten, aber wir gehen zurück an die Arbeit und kommen stärker zurück. Danke an alle, die weiterhin zu uns stehen. \uD83D\uDE4F",
     comments: {
       antihate: [
@@ -468,12 +466,14 @@ const STIMULI = {
   B: {
     label: "Sieg ohne eigenen Treffer",
     image: "post_photo_b.jpg",
+    likes: "3,8 Tsd.",
+    commentCount: 212,
     postText: "Drei Punkte mitgenommen heute. Die Mannschaft hat das großartig gemacht, ich freue mich für die Jungs. Ich weiß, dass bei mir mehr geht — daran arbeite ich weiter. Danke an alle, die zu uns stehen.",
     comments: {
       antihate: [
         { id: "c1", name: "A. M.", text: "auch ohne Treffer hat er vorne die Räume aufgemacht, das sieht in der Statistik halt niemand" },
         { id: "c2", name: "J. R.", text: "Stürmer haben Phasen ohne Tor, das gehört einfach dazu. Kopf hoch" },
-        { id: "c3", name: "T. B.", text: "du tust ja gar nichts. Halt die Klappe und trainier mehr.R" },   
+        { id: "c3", name: "T. B.", text: "du tust ja gar nichts. Halt die Klappe und trainier mehr." },   
         { id: "c4", name: "S. K.", text: "wir haben gewonnen und ihr streitet trotzdem. gönnt es der Mannschaft doch einfach" },
         { id: "c5", name: "M. P.", text: "er hat die ganze Saison gearbeitet, ein Spiel ohne Tor ändert daran nichts" },
         { id: "c6", name: "R. D.", text: "die Kommentare hier sind echt anstrengend, lasst {{FIRST_NAME}} doch seinen Abend" }
@@ -493,12 +493,14 @@ const STIMULI = {
   C: {
     label: "Cup-Aus",
     image: "post_photo_c.jpg",
+    likes: "874",
+    commentCount: 419,
     postText: "Das war es für uns im Cup. Wir haben alles reingelegt, heute hat es nicht gereicht. Danke an alle, die mitgefahren sind und uns unterstützt haben. Jetzt konzentrieren wir uns auf die Liga.",
     comments: {
       antihate: [
         { id: "c1", name: "A. M.", text: "die Mannschaft hat alles gegeben, mehr kann man nicht verlangen" },
         { id: "c2", name: "J. R.", text: "so ist das im Cup, ein schwacher Abend und du bist draußen. Kopf hoch" },
-        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen religiösen Snobismus." },  
+        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen Snobismus." },  
         { id: "c4", name: "S. K.", text: "eine Niederlage ist nie eine einzelne Person" },
         { id: "c5", name: "M. P.", text: "er war einer der wenigen, die überhaupt etwas versucht haben" },
         { id: "c6", name: "R. D.", text: "könnt ihr nicht einmal verlieren, ohne jemanden zu suchen, dem ihr die Schuld gebt" }
@@ -506,7 +508,7 @@ const STIMULI = {
       prohate: [
         { id: "c1", name: "A. M.", text: "immer die gleiche Geschichte, wenn es drauf ankommt" },
         { id: "c2", name: "J. R.", text: "wenn es wichtig wird, ist er nicht da" },
-        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen religiösen Snobismus." },   
+        { id: "c3", name: "T. B.", text: "wir hätten es geschafft, wenn du dich mehr auf dein Training konzentriert hättest, anstatt auf deinen Snobismus." },   
         { id: "c4", name: "S. K.", text: "eine Niederlage ist nie eine einzelne Person" },
         { id: "c5", name: "M. P.", text: "so einen im Sturm, und dann wundert man sich" },
         { id: "c6", name: "R. D.", text: "der Verein hat sich das mit ihm selbst eingebrockt" }
@@ -515,43 +517,36 @@ const STIMULI = {
   }
 };
 
+/* =========================================================
+   STRUCTURE CHECK
+   Runs on load. Confirms every comment array is exactly 6 comments
+   with ids c1..c6 in order, so a slot can never silently go missing
+   or land out of sequence. Warnings appear in the browser console
+   and at the top of the debug panel.
+   ========================================================= */
 const stimulusWarnings = [];
 
 (function checkStimuli() {
   const expectedIds = ["c1", "c2", "c3", "c4", "c5", "c6"];
-  let reference = null;
 
   Object.keys(STIMULI).forEach(k => {
     Object.keys(STIMULI[k].comments).forEach(cond => {
       const arr = STIMULI[k].comments[cond];
-      if (arr.length === 0) return; 
-
-      if (arr.length !== 6) {
-        stimulusWarnings.push(`${k}/${cond}: ${arr.length} comments, expected 6`);
+      if (arr.length !== expectedIds.length) {
+        stimulusWarnings.push(`${k}/${cond}: ${arr.length} comments, expected ${expectedIds.length}`);
       }
       arr.forEach((c, i) => {
         if (c.id !== expectedIds[i]) {
           stimulusWarnings.push(`${k}/${cond}: slot ${i + 1} has id "${c.id}", expected "${expectedIds[i]}"`);
         }
       });
-
-      const t = arr.find(c => c.id === TARGET_COMMENT_ID);
-      if (!t) {
-        stimulusWarnings.push(`${k}/${cond}: no comment with id "${TARGET_COMMENT_ID}"`);
-        return;
-      }
-      if (reference === null) {
-        reference = t;
-      } else if (t.text !== reference.text || t.name !== reference.name) {
-        stimulusWarnings.push(`${k}/${cond}: target comment does not match the others — check for a typo`);
-      }
     });
   });
 
   if (stimulusWarnings.length) {
     console.warn("STIMULUS CHECK FAILED:\n" + stimulusWarnings.join("\n"));
   } else {
-    console.log("Stimulus check passed: target comment identical in all conditions.");
+    console.log("Stimulus check passed.");
   }
 })();
 
@@ -586,7 +581,6 @@ const log = {
   desc_condition: descCondition,
   victim_condition: victimCondition,
   stimulus_order: stimulusOrder.join(","),
-  target_comment_id: TARGET_COMMENT_ID,
   intro_shown_ts: Date.now(),
   intro_continue_ts: null,
   stimuli: {},
@@ -748,12 +742,23 @@ function renderStimulus() {
   document.querySelector(".post-header .meta").textContent = "2 hours ago \u00B7 Forward";
   document.querySelector(".post-body").textContent = stim.postText;
 
+  // Post image. A missing file logs the exact URL that failed rather
+  // than silently showing the striped placeholder.
   const img = document.querySelector(".post-image");
+  img.onerror = () => {
+    const msg = `IMAGE NOT FOUND for stimulus ${key}: "${stim.image}" -> ${img.src}`;
+    console.error(msg);
+    if (!stimulusWarnings.includes(msg)) stimulusWarnings.push(msg);
+    renderDebug();
+  };
   img.src = stim.image;
 
-  // Comment count varies a little per post so the three don't look cloned
-  document.getElementById("comment-count").textContent =
-    [345, 288, 412][STIMULUS_KEYS.indexOf(key)];
+  // Engagement counts: set per stimulus in STIMULI above. Held CONSTANT
+  // across descriptive-norm conditions on purpose — a like count is
+  // itself a descriptive-norm cue, so varying it by condition would
+  // confound it with the comment-ratio manipulation.
+  document.getElementById("like-count").textContent = stim.likes;
+  document.getElementById("comment-count").textContent = stim.commentCount;
 
   // Reset the top-level comment bar
   const ta  = document.getElementById("top-comment-textarea");
@@ -833,9 +838,9 @@ if (urlParams.get("debug") === "1") {
 
 /* ---------- Flatten to one row ----------
    Column names are prefixed with the stimulus letter, so A_c3_flagged
-   is always the target comment under the loss post regardless of the
-   order that participant saw. Aggregate counts across the three posts
-   are appended at the end — total_target_flags is your count DV.
+   always refers to slot c3 under the loss post regardless of the order
+   that participant saw. Per-post counters and cross-post aggregates
+   are appended after the raw per-comment fields.
    ========================================================= */
 function buildParticipantRow() {
   const row = {
@@ -843,13 +848,12 @@ function buildParticipantRow() {
     desc_condition: log.desc_condition,
     victim_condition: log.victim_condition,
     stimulus_order: log.stimulus_order,
-    target_comment_id: log.target_comment_id,
     intro_shown_ts: log.intro_shown_ts,
     intro_continue_ts: log.intro_continue_ts,
     next_clicked_ts: log.next_clicked_ts
   };
 
-  let totalFlags = 0, totalTargetFlags = 0, totalReplies = 0, totalTopComments = 0;
+  let totalFlags = 0, totalReplies = 0, totalTopComments = 0;
   let totalRepliesOpened = 0, totalIntervention = 0, postsWithAction = 0;
 
   STIMULUS_KEYS.forEach(k => {
@@ -866,7 +870,6 @@ function buildParticipantRow() {
 
     // ---- Per-post counters ----
     let flagCount = 0, replyCount = 0, replyOpenedCount = 0;
-    let targetFlagged = false, targetReplied = false;
     const topComment = b.top_level_comment.submitted ? 1 : 0;
 
     Object.keys(b.comments).forEach(cid => {
@@ -878,31 +881,22 @@ function buildParticipantRow() {
       row[`${k}_${cid}_reply_text`] = c.reply_text;
       row[`${k}_${cid}_reply_submit_ts`] = c.reply_submit_ts;
 
-      if (c.flagged) {
-        flagCount++;
-        if (cid === log.target_comment_id) targetFlagged = true;
-      }
+      if (c.flagged) flagCount++;
       if (c.reply_opened) replyOpenedCount++;
-      if (c.reply_submitted) {
-        replyCount++;
-        if (cid === log.target_comment_id) targetReplied = true;
-      }
+      if (c.reply_submitted) replyCount++;
     });
 
-    row[`${k}_flag_count`]          = flagCount;         // 0-6
-    row[`${k}_target_flagged`]      = targetFlagged;     // did they flag c3 on THIS post
-    row[`${k}_reply_count`]         = replyCount;        // 0-6
-    row[`${k}_target_replied`]      = targetReplied;     // did they reply to c3 on THIS post
-    row[`${k}_reply_opened_count`]  = replyOpenedCount;  // opened but not necessarily sent
-    row[`${k}_top_comment_count`]   = topComment;        // 0-1
-    row[`${k}_intervention_count`]  = flagCount + replyCount + topComment;  // 0-13
-    row[`${k}_any_intervention`]    = (flagCount + replyCount + topComment) > 0;
+    row[`${k}_flag_count`]         = flagCount;         // 0-6
+    row[`${k}_reply_count`]        = replyCount;        // 0-6
+    row[`${k}_reply_opened_count`] = replyOpenedCount;  // opened but not necessarily sent
+    row[`${k}_top_comment_count`]  = topComment;        // 0-1
+    row[`${k}_intervention_count`] = flagCount + replyCount + topComment;  // 0-13
+    row[`${k}_any_intervention`]   = (flagCount + replyCount + topComment) > 0;
 
     totalFlags += flagCount;
     totalReplies += replyCount;
     totalRepliesOpened += replyOpenedCount;
     totalTopComments += topComment;
-    if (targetFlagged) totalTargetFlags++;
     totalIntervention += flagCount + replyCount + topComment;
     if (flagCount + replyCount + topComment > 0) postsWithAction++;
   });
@@ -915,11 +909,9 @@ function buildParticipantRow() {
     row[`pos${idx + 1}_stimulus`] = k;
     row[`pos${idx + 1}_intervention_count`] = row[`${k}_intervention_count`];
     row[`pos${idx + 1}_flag_count`] = row[`${k}_flag_count`];
-    row[`pos${idx + 1}_target_flagged`] = row[`${k}_target_flagged`];
   });
 
   row.total_flags = totalFlags;                  // 0-18
-  row.total_target_flags = totalTargetFlags;     // 0-3  <- primary count DV
   row.total_replies = totalReplies;              // 0-18
   row.total_replies_opened = totalRepliesOpened; // 0-18
   row.total_top_comments = totalTopComments;     // 0-3
