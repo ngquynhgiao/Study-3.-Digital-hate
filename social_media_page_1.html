@@ -374,9 +374,7 @@ const participantId = urlParams.get("pid") || ("TEST_" + Date.now());
 /* =========================================================
    CONDITION ASSIGNMENT
    Descriptive norm and victim identity are held CONSTANT
-   across all three stimuli — the three posts are three
-   exemplars of the SAME experimental condition, per your
-   supervisor's recommendation. Only the post itself varies.
+   across all three stimuli.
    ========================================================= */
 function pickCondition(paramName, options) {
   const fromUrl = urlParams.get(paramName);
