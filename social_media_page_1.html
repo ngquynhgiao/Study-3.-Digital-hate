@@ -43,6 +43,15 @@
     margin-top: 22px;
   }
 
+  /* Mobile: base 15px reads too small on phone screens, bump it up */
+  @media (max-width: 600px) {
+    .intro-screen {
+      font-size: 18px;
+      line-height: 1.65;
+      padding: 24px 18px;
+    }
+  }
+
   .instructions {
     width: 100%;
     max-width: 560px;
@@ -147,7 +156,9 @@
   }
   .reply-toggle:hover { text-decoration: underline; }
 
-  /* Flag icon: hidden until hover, per instruction */
+  /* Flag icon: hidden until hover on devices that support hovering
+     (mouse/trackpad). On touch devices there's no hover event, so it
+     stays visible at all times instead of being permanently hidden. */
   .flag-btn {
     position: absolute;
     top: 8px;
@@ -170,6 +181,15 @@
   }
   .flag-btn:hover { background: #fbeceb; }
   .flag-btn.flagged { opacity: 1; pointer-events: auto; color: #8e2f24; }
+
+  /* Touch devices (phones/tablets) have no hover state, so show the
+     flag icon by default instead of requiring an impossible hover. */
+  @media (hover: none) {
+    .flag-btn {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
 
   /* Inline reply box (per comment) */
   .reply-box {
